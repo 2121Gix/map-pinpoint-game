@@ -16,7 +16,7 @@ function App() {
   const [finalDisplay, setFinalDisplay] = useState("none");
 
   const {isLoaded} = useLoadScript({
-    googleMapsApiKey: "GOOGLE_API_KEY"
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_KEY
   });
 
   useEffect(() => {
@@ -34,7 +34,7 @@ function App() {
     $.ajax({
       method: 'GET',
       url: 'https://api.api-ninjas.com/v1/city?min_population=' +minpop+ '&max_population='+maxpop+'&limit=30',
-      headers: { 'X-Api-Key': "CITY_API_KEY"},
+      headers: { 'X-Api-Key': process.env.NEXT_PUBLIC_NINJA_KEY},
       contentType: 'application/json',
       success: function(result) {
         setCity(result[index].name);
@@ -56,7 +56,8 @@ function App() {
   const choiceConfirmed = () => {
     setMarkerFlag(true);
     setLinePath ([mark, cityCoords]);
-    setCs(cs+6000-getdistance());
+    const roundScore = Math.floor(6000-getdistance()*1.8);
+    setCs(roundScore >= 0 ? cs+roundScore : cs);
   }
 
   const nextround = () => {
@@ -65,6 +66,7 @@ function App() {
     if(round === 5){
       setFinalDisplay("block");
       if(cs > hs){setHs(cs);}
+      document.querySelector('.game').classList.add('blurred');
     }
     else
     {
@@ -82,7 +84,19 @@ function App() {
   }
 
   const getdistance = () => {
-    return 5;
+    const R = 6371e3; // metres
+    const φ1 = mark.lat * Math.PI/180; // φ, λ in radians
+    const φ2 = cityCoords.lat * Math.PI/180;
+    const Δφ = (cityCoords.lat-mark.lat) * Math.PI/180;
+    const Δλ = (cityCoords.lng-mark.lng) * Math.PI/180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    const d = R * c / 1000; // in metres
+    return Math.floor(d);
   }
 
   const replay = () => {
@@ -91,6 +105,8 @@ function App() {
     setMarkerFlag(false);
     setMark(null);
     fetchCity();
+    setFinalDisplay("none");
+    document.querySelector('.game').classList.remove('blurred');
   }
 
   return (
@@ -107,7 +123,7 @@ function App() {
             {
               mark !== null &&
                 <Marker
-              title= ""
+              title= "Your Guess"
               name= ""
               position={mark}
             />
@@ -116,10 +132,10 @@ function App() {
               markerFlag &&
               <div>
                 <Marker
-              title= ""
-              name= ""
-              position={cityCoords}
-            />
+              title= "Target"
+              name= "Target"
+              position={cityCoords}           
+               />
 
               <Polyline
               path={linePath}                  
@@ -132,7 +148,7 @@ function App() {
         {markerFlag &&
           <div className='continue'>
             <p>You missed by: {getdistance()} km</p>
-            <button className='confirm' onClick={nextround} disabled={round === 5}>NEXT TURN</button>
+            <button className='confirm' onClick={nextround} disabled={round === 5 && !markerFlag}>NEXT TURN</button>
           </div>
         }
       </div>
